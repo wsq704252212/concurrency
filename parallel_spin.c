@@ -9,6 +9,7 @@
 #define NUM_KEYS 100000   // Number of keys inserted per thread
 int num_threads = 1;      // Number of threads (configurable)
 int keys[NUM_KEYS];
+pthread_spinlock_t spinlock; 
 
 typedef struct _bucket_entry {
   int key;
@@ -34,10 +35,16 @@ void insert(int key, int val) {
   int i = key % NUM_BUCKETS;
   bucket_entry *e = (bucket_entry *) malloc(sizeof(bucket_entry));
   if (!e) panic("No memory to allocate bucket!");
+
+
+  pthread_spin_lock(&spinlock); 
+
   e->next = table[i];
   e->key = key;
   e->val = val;
   table[i] = e;
+
+  pthread_spin_unlock(&spinlock); 
 }
 
 // Retrieves an entry from the hash table by key
@@ -96,7 +103,11 @@ int main(int argc, char **argv) {
   if (!threads) {
     panic("out of memory allocating thread handles");
   }
-  
+
+  if (pthread_spin_init(&spinlock, PTHREAD_PROCESS_PRIVATE) != 0) {
+    panic("fail to init spinlock");
+  }
+
   // Insert keys in parallel
   start = now();
   for (i = 0; i < num_threads; i++) {
